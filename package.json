@@ -1,27 +1,17 @@
 {
-  "name": "proxy-server---finspark",
+  "name": "proxy-server-finspark",
   "version": "1.0.0",
-  "description": "",
+  "description": "Serverless translation proxy for FINSPARK extension",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vercel dev",
+    "test": "echo \"No test configured\" && exit 0"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Revati0419/PROXY-SERVER---FINSPARK.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/Revati0419/PROXY-SERVER---FINSPARK/issues"
-  },
-  "homepage": "https://github.com/Revati0419/PROXY-SERVER---FINSPARK#readme",
+  "keywords": ["vercel", "proxy", "translation", "huggingface"],
+  "author": "Revati",
+  "license": "MIT",
+  "type": "module",
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.1",
-    "express": "^5.1.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^3.3.2"
   }
 }
