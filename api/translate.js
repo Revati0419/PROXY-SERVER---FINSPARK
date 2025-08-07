@@ -1,62 +1,50 @@
-// api/translate.js
-import fetch from 'node-fetch';
-
-const HUGGING_FACE_API_KEY = process.env.HF_API_KEY;
+// File: /api/translate.js
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST requests allowed.' });
-  }
-
-  const { text, targetLang } = req.body;
-
-  const langCodeMap = {
-    hi: 'hi_IN',
-    mr: 'mr_IN',
-    bn: 'bn_IN',
-    gu: 'gu_IN'
-  };
-
-  const targetLangCode = langCodeMap[targetLang];
-  if (!targetLangCode) {
-    return res.status(400).json({ error: `Unsupported language '${targetLang}'` });
-  }
-
-  const payload = {
-    inputs: text,
-    parameters: {
-      src_lang: "en_XX",
-      tgt_lang: targetLangCode
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Only POST requests allowed' });
     }
-  };
 
-  try {
-    const response = await fetch(`https://api-inference.huggingface.co/models/facebook/mbart-large-50-many-to-many-mrt`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HUGGING_FACE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    const { text, targetLang } = req.body;
 
-    const data = await response.json();
-
-    if (data && data[0]?.translation_text) {
-      return res.status(200).json([{ translation_text: data[0].translation_text }]);
-    } else {
-      return res.status(response.status).json(data);
+    if (!text || !targetLang) {
+        return res.status(400).json({ error: 'Missing "text" or "targetLang" in request body' });
     }
-  } catch (error) {
-    console.error("Translation proxy error:", error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+
+    // Map target language codes to Hugging Face MarianMT models
+    const langModelMap = {
+        hi: 'Helsinki-NLP/opus-mt-en-hi',
+        mr: 'Helsinki-NLP/opus-mt-en-mr',
+        bn: 'Helsinki-NLP/opus-mt-en-bn',
+        gu: 'Helsinki-NLP/opus-mt-en-gu',
+    };
+
+    const model = langModelMap[targetLang];
+    if (!model) {
+        return res.status(400).json({ error: `Unsupported target language: ${targetLang}` });
+    }
+
+    try {
+        const hfResponse = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ inputs: text }),
+        });
+
+        const data = await hfResponse.json();
+
+        if (!hfResponse.ok) {
+            // HuggingFace model is loading or another error
+            return res.status(hfResponse.status).json(data);
+        }
+
+        return res.status(200).json(data);
+
+    } catch (err) {
+        console.error('Server error:', err);
+        return res.status(500).json({ error: 'Server error while contacting translation service' });
+    }
 }
