@@ -3,7 +3,7 @@ require('dotenv').config();
 
 const express = require('express');
 const fetch = require('node-fetch');
-const cors = require('cors'); // Make sure this line is here
+const cors = require('cors');
 const app = express();
 
 // --- CONFIGURATION & SECURITY ---
@@ -11,36 +11,45 @@ const HUGGING_FACE_API_KEY = process.env.HF_API_KEY;
 if (!HUGGING_FACE_API_KEY) {
     throw new Error("FATAL ERROR: HF_API_KEY is not set in environment variables.");
 }
-
 const PORT = process.env.PORT || 3000;
 
 // --- MIDDLEWARE SETUP ---
-// THIS IS THE FIX. This line tells your server to add the
-// 'Access-Control-Allow-Origin' header to all responses.
-// It MUST come BEFORE your app.post routes.
+// This is the CRITICAL fix for the CORS error.
 app.use(cors());
+app.use(express.json());
 
-app.use(express.json()); // Allow the server to receive JSON data
 
 // --- API ROUTES ---
 
-// == 1. Translation Endpoint ==
-// ... (The rest of your /translate route code is the same and is correct) ...
+// == Translation Endpoint with NEW mBART Model ==
 app.post('/translate', async (req, res) => {
     const { text, targetLang } = req.body;
-    const model = {
-        'hi': 'Helsinki-NLP/opus-mt-en-hi',
-        'mr': 'Helsinki-NLP/opus-mt-en-mr',
-        'bn': 'Helsinki-NLP/opus-mt-en-bn',
-        'gu': 'facebook/m2m100_418M'
-    }[targetLang];
 
-    if (!model) return res.status(400).json({ error: `Language '${targetLang}' not supported.` });
+    // --- CHANGE #1: Define the single model we will use ---
+    const model = "facebook/mbart-large-50-many-to-many-mrt";
 
-    let payload = { inputs: text };
-    if (model.includes('m2m100')) {
-        payload.inputs = `>>${targetLang}<< ${text}`;
+    // --- CHANGE #2: Map our simple codes to the full language names mBART expects ---
+    const langCodeMap = {
+        'hi': 'hi_IN', // Hindi
+        'mr': 'mr_IN', // Marathi
+        'bn': 'bn_IN', // Bengali
+        'gu': 'gu_IN'  // Gujarati
+    };
+    const targetLangCode = langCodeMap[targetLang];
+
+    if (!targetLangCode) {
+        return res.status(400).json({ error: `Language '${targetLang}' not supported.` });
     }
+
+    // --- CHANGE #3: The payload for this model is slightly different ---
+    // It requires parameters to tell it the source and target language codes.
+    const payload = {
+        inputs: text,
+        parameters: {
+            src_lang: "en_XX",       // English
+            tgt_lang: targetLangCode // The language code we looked up
+        }
+    };
 
     try {
         const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
@@ -49,9 +58,22 @@ app.post('/translate', async (req, res) => {
             body: JSON.stringify(payload)
         });
         const data = await response.json();
-        res.status(response.status).json(data);
+
+        // --- CHANGE #4: The response from this model has a different name ---
+        // It's 'translation_text' instead of 'generated_text'. We'll adjust our response.
+        if (data && data[0] && data[0].translation_text) {
+             // We re-format the response to match what the original Helsinki model sent,
+             // so our Chrome extension doesn't need to change at all.
+            const formattedResponse = [{
+                translation_text: data[0].translation_text
+            }];
+            res.status(200).json(formattedResponse);
+        } else {
+            // Forward the raw response if it's an error or unexpected format
+            res.status(response.status).json(data);
+        }
     } catch (error) {
-        console.error("Server-side fetch error:", error)
+        console.error("Server-side fetch error:", error);
         res.status(500).json({ error: 'Server-side fetch error.' });
     }
 });
@@ -59,5 +81,5 @@ app.post('/translate', async (req, res) => {
 
 // --- START SERVER ---
 app.listen(PORT, () => {
-    console.log(`✅ Server is running on http://localhost:${PORT}`);
+    console.log(`✅ Server (mBART model) is running on http://localhost:${PORT}`);
 });
