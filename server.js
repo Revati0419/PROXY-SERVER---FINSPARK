@@ -25,7 +25,6 @@ app.use(express.json()); // Allow the server to receive JSON data
 // --- API ROUTES ---
 
 // == 1. Translation Endpoint ==
-// ... (The rest of your /translate route code is the same and is correct) ...
 app.post('/translate', async (req, res) => {
     const { text, targetLang } = req.body;
     const model = {
@@ -51,6 +50,7 @@ app.post('/translate', async (req, res) => {
         const data = await response.json();
         res.status(response.status).json(data);
     } catch (error) {
+        console.error("Server-side fetch error:", error)
         res.status(500).json({ error: 'Server-side fetch error.' });
     }
 });
